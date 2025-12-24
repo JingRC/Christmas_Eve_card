@@ -15,7 +15,8 @@
   const qs = getQueryParams();
   const el = (id)=>document.getElementById(id);
   const year = new Date().getFullYear();
-  el('year').textContent = year;
+  const yearEl = el('year');
+  if(yearEl) yearEl.textContent = year;
 
   const blessings = [
     '愿你被温柔以待，被幸运拥抱。',
@@ -103,21 +104,23 @@
       msg = blessings[Math.floor(Math.random()*blessings.length)];
     }
 
-    toLine.textContent = `亲爱的 ${to}：`;
+    if(toLine) toLine.textContent = `亲爱的 ${to}：`;
     const fullMessage = getFullMessage();
-    fromLine.textContent = `—— 来自 ${from}`;
+    if(fromLine) fromLine.textContent = `—— 来自 ${from}`;
 
     // Keep form fields in sync
-    toInput.value = to === '朋友' ? '' : to;
-    fromInput.value = from === '我' ? '' : from;
-    msgInput.value = msgRaw;
+    if(toInput) toInput.value = to === '朋友' ? '' : to;
+    if(fromInput) fromInput.value = from === '我' ? '' : from;
+    if(msgInput) msgInput.value = msgRaw;
 
     // Update message text (respect reduced motion / typewriter)
-    if(prefersReduced){
-      messageEl.textContent = fullMessage;
-    }else{
-      // avoid double-running entrance sequence; just refresh content
-      messageEl.textContent = fullMessage;
+    if(messageEl){
+      if(prefersReduced){
+        messageEl.textContent = fullMessage;
+      }else{
+        // avoid double-running entrance sequence; just refresh content
+        messageEl.textContent = fullMessage;
+      }
     }
   }
 
@@ -135,7 +138,7 @@
   msgInput.value = msgRaw;
 
   // Ensure base text is present even if entrance animation is interrupted.
-  applyBlessing({ to, from, msgRaw });
+  try{ applyBlessing({ to, from, msgRaw }); }catch{}
 
   customizeBtn.addEventListener('click', ()=>{
     form.classList.toggle('hidden');
@@ -388,6 +391,24 @@
 
   // Kick it off after initial paint.
   requestAnimationFrame(()=>{ runEntrance(); });
+
+  // Fallback for some WebViews (e.g., WeChat) where entrance may be interrupted.
+  setTimeout(()=>{
+    try{
+      const missingText = !toLine || !toLine.textContent;
+      const missingList = !wishList || !wishList.children || wishList.children.length === 0;
+      if(missingText){
+        applyBlessing({ to, from, msgRaw });
+        showReveal('to');
+        showReveal('from');
+        showReveal('actions');
+        if(messageEl) messageEl.classList.add('is-visible');
+      }
+      if(missingList){
+        renderWishList();
+      }
+    }catch{}
+  }, 1200);
 
   // Recompute orbit on resize.
   window.addEventListener('resize', ()=>{
