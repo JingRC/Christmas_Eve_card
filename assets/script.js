@@ -234,6 +234,9 @@
   let orbitRadius = 170;
   let spinBaseDeg = Math.random() * 360;
   const spinSpeedDegPerSec = 26; // feels 3D but readable
+  let inertiaSpinVel = 0; // deg/sec
+  let lastSpinTs = 0;
+  const spinPerPx = isMobile ? (isWeChat ? 0.56 : 0.48) : 0.22;
 
   function getOrbitRadius(){
     if(!orbital) return 170;
@@ -343,6 +346,19 @@
       return;
     }
     lastOrbitTs = ts;
+
+    // Apply inertia spin when user is not dragging.
+    if(!lastSpinTs) lastSpinTs = ts;
+    const spinDt = Math.min(0.05, Math.max(0, (ts - lastSpinTs) / 1000));
+    lastSpinTs = ts;
+    if(Math.abs(inertiaSpinVel) > 0.02){
+      spinBaseDeg = (spinBaseDeg + inertiaSpinVel * spinDt) % 360;
+      // Friction: smooth decay (frame-rate independent)
+      const decay = Math.pow(0.90, spinDt * 60);
+      inertiaSpinVel *= decay;
+      if(Math.abs(inertiaSpinVel) < 0.02) inertiaSpinVel = 0;
+    }
+
     const t = ts / 1000;
     const spin = (spinBaseDeg + t * spinSpeedDegPerSec) % 360;
     orbit.style.setProperty('--spinY', `${spin}deg`);
@@ -460,6 +476,8 @@
 
     // Mobile: allow finger drag to control tilt (more reliable than gyro in WeChat).
     let dragging = false;
+    let dragLastX = 0;
+    let dragLastT = 0;
     const setPointerTiltFromClient = (clientX, clientY)=>{
       const rect = orbital.getBoundingClientRect();
       const cx = rect.left + rect.width/2;
@@ -470,14 +488,30 @@
       pointerTiltX = clamp(-ny * 10, -10, 10);
     };
 
+    const updateSpinFromDrag = (clientX, nowMs)=>{
+      if(!orbit) return;
+      const dx = clientX - dragLastX;
+      const dt = Math.max(8, nowMs - dragLastT);
+      dragLastX = clientX;
+      dragLastT = nowMs;
+      // Rotate ring by horizontal drag; keep it responsive.
+      spinBaseDeg = (spinBaseDeg + dx * spinPerPx) % 360;
+      // Store velocity for inertia on release.
+      inertiaSpinVel = (dx / dt) * spinPerPx * 1000;
+    };
+
     // Pointer events (modern)
     orbital.addEventListener('pointerdown', (e)=>{
       dragging = true;
       try{ orbital.setPointerCapture(e.pointerId); }catch{}
+      inertiaSpinVel = 0;
+      dragLastX = e.clientX;
+      dragLastT = performance.now();
       setPointerTiltFromClient(e.clientX, e.clientY);
     });
     orbital.addEventListener('pointermove', (e)=>{
       if(!dragging) return;
+      updateSpinFromDrag(e.clientX, performance.now());
       setPointerTiltFromClient(e.clientX, e.clientY);
     });
     const endDrag = ()=>{
@@ -494,11 +528,15 @@
       if(!e.touches || !e.touches.length) return;
       dragging = true;
       const t = e.touches[0];
+      inertiaSpinVel = 0;
+      dragLastX = t.clientX;
+      dragLastT = performance.now();
       setPointerTiltFromClient(t.clientX, t.clientY);
     }, {passive:true});
     orbital.addEventListener('touchmove', (e)=>{
       if(!dragging || !e.touches || !e.touches.length) return;
       const t = e.touches[0];
+      updateSpinFromDrag(t.clientX, performance.now());
       setPointerTiltFromClient(t.clientX, t.clientY);
     }, {passive:true});
     orbital.addEventListener('touchend', endDrag, {passive:true});
