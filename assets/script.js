@@ -1,5 +1,18 @@
 (function(){
-  const qs = new URLSearchParams(location.search);
+  function getQueryParams(){
+    if(location.search && location.search.length > 1){
+      return new URLSearchParams(location.search);
+    }
+    // WeChat sometimes appends or rewrites with #wechat_redirect; be tolerant.
+    const h = location.hash || '';
+    const i = h.indexOf('?');
+    if(i !== -1 && i < h.length - 1){
+      return new URLSearchParams(h.slice(i + 1));
+    }
+    return new URLSearchParams();
+  }
+
+  const qs = getQueryParams();
   const el = (id)=>document.getElementById(id);
   const year = new Date().getFullYear();
   el('year').textContent = year;
@@ -59,19 +72,39 @@
     '愿你今晚收下祝福，明天收获幸福。',
   ];
 
-  const to = (qs.get('to')||'朋友').trim();
-  const from = (qs.get('from')||'我').trim();
-  const msgRaw = (qs.get('msg')||'').trim();
-  const msg = msgRaw || blessings[Math.floor(Math.random()*blessings.length)];
+  let to = (qs.get('to')||'朋友').trim();
+  let from = (qs.get('from')||'我').trim();
+  let msgRaw = (qs.get('msg')||'').trim();
+  let msg = msgRaw || blessings[Math.floor(Math.random()*blessings.length)];
 
   const toLine = el('toLine');
   const messageEl = el('message');
   const fromLine = el('fromLine');
   const wishList = el('wishList');
 
-  toLine.textContent = `亲爱的 ${to}：`;
-  const fullMessage = `在这个温暖的平安夜，送你一颗平安果。${msg}`;
-  fromLine.textContent = `—— 来自 ${from}`;
+  function applyBlessing(next){
+    to = (next.to || '朋友').trim() || '朋友';
+    from = (next.from || '我').trim() || '我';
+    msgRaw = (next.msgRaw || '').trim();
+    msg = msgRaw || blessings[Math.floor(Math.random()*blessings.length)];
+
+    toLine.textContent = `亲爱的 ${to}：`;
+    const fullMessage = `在这个温暖的平安夜，送你一颗平安果。${msg}`;
+    fromLine.textContent = `—— 来自 ${from}`;
+
+    // Keep form fields in sync
+    toInput.value = to === '朋友' ? '' : to;
+    fromInput.value = from === '我' ? '' : from;
+    msgInput.value = msgRaw;
+
+    // Update message text (respect reduced motion / typewriter)
+    if(prefersReduced){
+      messageEl.textContent = fullMessage;
+    }else{
+      // avoid double-running entrance sequence; just refresh content
+      messageEl.textContent = fullMessage;
+    }
+  }
 
   // Form interactions
   const form = el('customForm');
@@ -121,13 +154,17 @@
   });
 
   buildLinkBtn.addEventListener('click', async ()=>{
-    const url = buildShareUrl({
-      to: toInput.value.trim(),
-      from: fromInput.value.trim(),
-      msg: msgInput.value.trim(),
-    });
+    const nextTo = toInput.value.trim();
+    const nextFrom = fromInput.value.trim();
+    const nextMsg = msgInput.value.trim();
+    const url = buildShareUrl({ to: nextTo, from: nextFrom, msg: nextMsg });
+
+    // Update current page URL + content so "分享"(WeChat menu) also uses the customized link.
+    try{ history.replaceState(null, '', url); }catch{}
+    applyBlessing({ to: nextTo || '朋友', from: nextFrom || '我', msgRaw: nextMsg });
+
     const ok = await copy(url);
-    toast(ok? '个性链接已复制，快分享给TA吧~' : '复制失败，请手动复制生成的链接');
+    toast(ok? '个性链接已复制（并已应用到本页），快分享给TA吧~' : '复制失败，请手动复制地址栏链接');
   });
 
   // Entrance interaction: reveal + typing + list
