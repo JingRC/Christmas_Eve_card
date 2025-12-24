@@ -233,7 +233,8 @@
   const orbit = wishList;
   let orbitRadius = 170;
   let spinBaseDeg = Math.random() * 360;
-  const spinSpeedDegPerSec = 26; // feels 3D but readable
+  // Keep auto spin on mobile, but lighter than desktop for smoothness.
+  const spinSpeedDegPerSec = isMobile ? 18 : 26;
   let inertiaSpinVel = 0; // deg/sec
   let lastSpinTs = 0;
   const spinPerPx = isMobile ? (isWeChat ? 0.56 : 0.48) : 0.22;
@@ -335,13 +336,10 @@
   let rafId = 0;
   let orbitItems = [];
   let lastOrbitTs = 0;
-  const orbitFrameMs = 1000 / (isWeChat ? 20 : 30);
+  let lastOrbitHeavyTs = 0;
+  const orbitHeavyFrameMs = 1000 / (isWeChat ? 18 : (isMobile ? 24 : 30));
   function animateOrbit(ts){
     if(!orbit || prefersReduced || !appActive){
-      rafId = requestAnimationFrame(animateOrbit);
-      return;
-    }
-    if(ts - lastOrbitTs < orbitFrameMs){
       rafId = requestAnimationFrame(animateOrbit);
       return;
     }
@@ -362,6 +360,13 @@
     const t = ts / 1000;
     const spin = (spinBaseDeg + t * spinSpeedDegPerSec) % 360;
     orbit.style.setProperty('--spinY', `${spin}deg`);
+
+    // Throttle heavier per-item computations (depth/opacity/blur) for performance.
+    if(ts - lastOrbitHeavyTs < orbitHeavyFrameMs){
+      rafId = requestAnimationFrame(animateOrbit);
+      return;
+    }
+    lastOrbitHeavyTs = ts;
 
     const items = orbitItems.length ? orbitItems : Array.from(orbit.querySelectorAll('li'));
     for(const li of items){
