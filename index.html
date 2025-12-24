@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+  <meta name="theme-color" content="#b21f3a" />
+  <title>平安夜快乐｜送你一颗平安果</title>
+  <meta name="description" content="平安夜快乐🎄 送你一颗平安果，愿你平安喜乐、万事顺遂。" />
+
+  <!-- Open Graph / WeChat/Tencent share basics (更新为你的线上地址) -->
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content="平安夜快乐｜送你一颗平安果" />
+  <meta property="og:description" content="愿你平安喜乐、万事顺遂。收下这颗温暖的平安果🍎" />
+  <meta property="og:url" content="https://your-domain.example.com" />
+  <meta property="og:image" content="https://your-domain.example.com/og-image.png" />
+  <meta property="og:locale" content="zh_CN" />
+
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="assets/styles.css" />
+</head>
+<body>
+  <canvas id="snow"></canvas>
+  <canvas id="fx"></canvas>
+
+  <!-- Corner decorations (purely visual) -->
+  <div class="decorations" aria-hidden="true">
+    <div class="decor decor--tl">
+      <!-- Holly -->
+      <svg viewBox="0 0 120 120" role="img" aria-hidden="true">
+        <defs>
+          <linearGradient id="hollyG" x1="0" x2="1" y1="0" y2="1">
+            <stop offset="0%" stop-color="#2e9d2e"/>
+            <stop offset="100%" stop-color="#0f5f33"/>
+          </linearGradient>
+          <linearGradient id="berryG" x1="0" x2="1" y1="0" y2="1">
+            <stop offset="0%" stop-color="#ff6767"/>
+            <stop offset="100%" stop-color="#b21f3a"/>
+          </linearGradient>
+        </defs>
+        <path d="M22 55c16-20 36-16 44-6-18 6-22 22-10 32-18 5-31-6-34-26z" fill="url(#hollyG)" opacity=".85"/>
+        <path d="M96 56c-16-20-36-16-44-6 18 6 22 22 10 32 18 5 31-6 34-26z" fill="url(#hollyG)" opacity=".78"/>
+        <path d="M58 26c6 14 6 26 0 38-6-12-6-24 0-38z" fill="#7a3a00" opacity=".45"/>
+        <circle cx="52" cy="62" r="7" fill="url(#berryG)"/>
+        <circle cx="67" cy="60" r="6" fill="url(#berryG)" opacity=".95"/>
+        <circle cx="60" cy="70" r="6.5" fill="url(#berryG)" opacity=".92"/>
+      </svg>
+    </div>
+
+    <div class="decor decor--tr">
+      <!-- Star + ribbon -->
+      <svg viewBox="0 0 140 140" role="img" aria-hidden="true">
+        <defs>
+          <linearGradient id="starG" x1="0" x2="1">
+            <stop offset="0%" stop-color="#fff8d4"/>
+            <stop offset="55%" stop-color="#f0c94a"/>
+            <stop offset="100%" stop-color="#d1a62a"/>
+          </linearGradient>
+        </defs>
+        <path d="M70 14l12 32 34 2-26 20 9 33-29-18-29 18 9-33-26-20 34-2 12-32z" fill="url(#starG)" opacity=".92"/>
+        <path d="M18 92c28-10 48-8 62 4 14 12 34 14 60 6" fill="none" stroke="#b21f3a" stroke-width="6" stroke-linecap="round" opacity=".25"/>
+      </svg>
+    </div>
+
+    <div class="decor decor--bl">
+      <!-- Pine tree -->
+      <svg viewBox="0 0 140 170" role="img" aria-hidden="true">
+        <defs>
+          <linearGradient id="pineG" x1="0" x2="1" y1="0" y2="1">
+            <stop offset="0%" stop-color="#2e9d2e"/>
+            <stop offset="100%" stop-color="#0f5f33"/>
+          </linearGradient>
+          <linearGradient id="goldG" x1="0" x2="1">
+            <stop offset="0%" stop-color="#fff8d4"/>
+            <stop offset="50%" stop-color="#f0c94a"/>
+            <stop offset="100%" stop-color="#d1a62a"/>
+          </linearGradient>
+        </defs>
+        <path d="M70 10l8 18 20 1-15 12 5 19-18-11-18 11 5-19-15-12 20-1 8-18z" fill="url(#goldG)" opacity=".95"/>
+        <path d="M70 28c-16 18-28 32-36 42h18c-10 12-18 22-25 33h22c-9 12-16 22-22 32h86c-6-10-13-20-22-32h22c-7-11-15-21-25-33h18c-8-10-20-24-36-42z" fill="url(#pineG)" opacity=".88"/>
+        <rect x="62" y="132" width="16" height="26" rx="4" fill="#7a3a00" opacity=".55"/>
+        <circle cx="52" cy="86" r="4.5" fill="#ff6767" opacity=".9"/>
+        <circle cx="88" cy="98" r="4" fill="#f0c94a" opacity=".92"/>
+        <circle cx="66" cy="108" r="3.5" fill="#ff6767" opacity=".85"/>
+      </svg>
+    </div>
+
+    <div class="decor decor--br">
+      <!-- Second pine (mirrored) -->
+      <svg viewBox="0 0 140 170" role="img" aria-hidden="true">
+        <defs>
+          <linearGradient id="pineG2" x1="0" x2="1" y1="0" y2="1">
+            <stop offset="0%" stop-color="#2e9d2e"/>
+            <stop offset="100%" stop-color="#0f5f33"/>
+          </linearGradient>
+          <linearGradient id="goldG2" x1="0" x2="1">
+            <stop offset="0%" stop-color="#fff8d4"/>
+            <stop offset="50%" stop-color="#f0c94a"/>
+            <stop offset="100%" stop-color="#d1a62a"/>
+          </linearGradient>
+        </defs>
+        <g transform="translate(140,0) scale(-1,1)">
+          <path d="M70 10l8 18 20 1-15 12 5 19-18-11-18 11 5-19-15-12 20-1 8-18z" fill="url(#goldG2)" opacity=".95"/>
+          <path d="M70 28c-16 18-28 32-36 42h18c-10 12-18 22-25 33h22c-9 12-16 22-22 32h86c-6-10-13-20-22-32h22c-7-11-15-21-25-33h18c-8-10-20-24-36-42z" fill="url(#pineG2)" opacity=".86"/>
+          <rect x="62" y="132" width="16" height="26" rx="4" fill="#7a3a00" opacity=".55"/>
+          <circle cx="54" cy="96" r="4" fill="#f0c94a" opacity=".92"/>
+          <circle cx="84" cy="86" r="4.5" fill="#ff6767" opacity=".9"/>
+          <circle cx="72" cy="110" r="3.5" fill="#ff6767" opacity=".85"/>
+        </g>
+      </svg>
+    </div>
+  </div>
+
+  <main class="wrap">
+    <section class="card">
+      <header class="hero">
+        <h1 class="title reveal" data-reveal="title">平安夜快乐</h1>
+        <p class="subtitle reveal" data-reveal="subtitle">愿你平安喜乐 · 万事顺遂</p>
+      </header>
+
+      <div class="orbital reveal" data-reveal="apple" aria-label="平安果与祝福环绕">
+        <figure class="apple" aria-label="平安果" role="button" tabindex="0" title="点我放烟花">
+          <!-- Stylized Apple SVG -->
+          <svg viewBox="0 0 220 220" role="img" aria-hidden="true">
+          <defs>
+            <linearGradient id="gRed" x1="0" x2="1" y1="0" y2="1">
+              <stop offset="0%" stop-color="#ff6767"/>
+              <stop offset="50%" stop-color="#e33232"/>
+              <stop offset="100%" stop-color="#b21f3a"/>
+            </linearGradient>
+            <linearGradient id="gLeaf" x1="0" x2="1" y1="0" y2="1">
+              <stop offset="0%" stop-color="#7bd67b"/>
+              <stop offset="100%" stop-color="#2e9d2e"/>
+            </linearGradient>
+            <filter id="soft" x="-20%" y="-20%" width="140%" height="140%">
+              <feGaussianBlur in="SourceAlpha" stdDeviation="3" result="blur"/>
+              <feOffset in="blur" dx="0" dy="2" result="off"/>
+              <feMerge>
+                <feMergeNode in="off"/>
+                <feMergeNode in="SourceGraphic"/>
+              </feMerge>
+            </filter>
+          </defs>
+          <g filter="url(#soft)">
+            <path d="M110 35c8 0 15 2 20 6 5-8 13-13 24-14-3 12-11 19-23 22 8 1 16 4 24 9 24 14 39 43 34 70-8 43-43 64-79 64s-71-21-79-64c-5-27 10-56 34-70 11-6 22-9 33-9 4-6 8-10 12-12 4-2 10-2 20-2z" fill="url(#gRed)"/>
+            <path d="M125 44c18-1 26 1 36 6-13 3-24 5-36-6z" fill="#7a1a2a" opacity="0.35"/>
+            <path d="M142 30c10 2 20 3 30 0-7 12-16 19-30 20-3-7-2-14 0-20z" fill="url(#gLeaf)"/>
+            <path d="M110 40c3-7 8-12 15-15-2 7-6 12-15 15z" fill="#5b1a1a" opacity="0.5"/>
+            <circle cx="80" cy="80" r="18" fill="#fff" opacity="0.25"/>
+            <circle cx="90" cy="85" r="8" fill="#fff" opacity="0.35"/>
+          </g>
+          <!-- Golden ribbon with 平安 -->
+          <g class="ribbon">
+            <rect x="35" y="120" rx="10" ry="10" width="150" height="42" fill="#f7d774" />
+            <rect x="35" y="120" rx="10" ry="10" width="150" height="42" fill="url(#gold)" opacity="0.25"/>
+            <text x="110" y="147" text-anchor="middle" font-size="24" fill="#7a3a00" style="font-weight:700;font-family: 'PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif">平 安</text>
+          </g>
+          <defs>
+            <linearGradient id="gold" x1="0" x2="1">
+              <stop offset="0%" stop-color="#fff8d4"/>
+              <stop offset="50%" stop-color="#f0c94a"/>
+              <stop offset="100%" stop-color="#d1a62a"/>
+            </linearGradient>
+          </defs>
+          </svg>
+        </figure>
+
+        <ul id="wishList" class="wish-list orbit" aria-label="祝福词环绕"></ul>
+      </div>
+
+      <div class="blessing">
+        <p id="toLine" class="to-line reveal" data-reveal="to"></p>
+        <p id="message" class="message reveal" data-reveal="message" aria-live="polite"></p>
+        <p id="fromLine" class="from-line reveal" data-reveal="from"></p>
+      </div>
+
+      <div class="actions reveal" data-reveal="actions">
+        <button id="copyBtn" class="btn primary">复制祝福链接</button>
+        <button id="customizeBtn" class="btn ghost">生成个性祝福</button>
+        <button id="audioBtn" class="btn ghost" aria-pressed="false">音乐：关</button>
+      </div>
+
+      <form id="customForm" class="custom hidden" autocomplete="off">
+        <div class="row">
+          <label>
+            <span>TA 的名字</span>
+            <input id="toInput" placeholder="如：小伙伴" maxlength="16" />
+          </label>
+          <label>
+            <span>你的署名</span>
+            <input id="fromInput" placeholder="如：阿杰" maxlength="16" />
+          </label>
+        </div>
+        <label class="full">
+          <span>自定义祝福（可留空自动生成）</span>
+          <textarea id="msgInput" rows="3" placeholder="写点想说的话…" maxlength="80"></textarea>
+        </label>
+        <div class="row">
+          <button type="button" id="buildLinkBtn" class="btn primary">生成链接并复制</button>
+          <button type="button" id="closeFormBtn" class="btn ghost">完成</button>
+        </div>
+        <p class="tip">提示：在微信右上角使用“复制链接”或“发送给朋友”。</p>
+      </form>
+    </section>
+
+    <footer class="foot">© <span id="year"></span> 送你一颗平安果 🍎</footer>
+  </main>
+
+  <script src="assets/script.js" defer></script>
+</body>
+</html>
