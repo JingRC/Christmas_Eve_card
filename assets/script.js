@@ -123,6 +123,12 @@
     form.classList.toggle('hidden');
   });
   closeFormBtn.addEventListener('click', ()=>{
+    const nextTo = toInput.value.trim();
+    const nextFrom = fromInput.value.trim();
+    const nextMsg = msgInput.value.trim();
+    const url = buildShareUrl({ to: nextTo, from: nextFrom, msg: nextMsg });
+    try{ history.replaceState(null, '', url); }catch{}
+    applyBlessing({ to: nextTo || '朋友', from: nextFrom || '我', msgRaw: nextMsg });
     form.classList.add('hidden');
   });
 
@@ -169,6 +175,10 @@
 
   // Entrance interaction: reveal + typing + list
   const prefersReduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const isMobile = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+  const perfScale = isMobile ? 0.72 : 1;
+  let appActive = !document.hidden;
+  document.addEventListener('visibilitychange', ()=>{ appActive = !document.hidden; }, {passive:true});
 
   function sleep(ms){ return new Promise((r)=>setTimeout(r, ms)); }
 
@@ -270,9 +280,10 @@
 
   async function renderWishList(){
     wishList.innerHTML = '';
-    const items = pickListItems(8);
+    const items = pickListItems(Math.max(6, Math.floor(8 * perfScale)));
     const offset = Math.random() * 360;
     const step = 360 / items.length;
+    orbitItems = [];
     for(let i=0;i<items.length;i++){
       const li = document.createElement('li');
       const span = document.createElement('span');
@@ -280,6 +291,7 @@
       li.appendChild(span);
       li.dataset.baseAngleDeg = String(offset + step * i);
       wishList.appendChild(li);
+      orbitItems.push(li);
       if(prefersReduced){
         li.classList.add('show');
         continue;
@@ -295,16 +307,24 @@
   }
 
   let rafId = 0;
+  let orbitItems = [];
+  let lastOrbitTs = 0;
+  const orbitFrameMs = 1000 / 30;
   function animateOrbit(ts){
-    if(!orbit || prefersReduced){
+    if(!orbit || prefersReduced || !appActive){
       rafId = requestAnimationFrame(animateOrbit);
       return;
     }
+    if(ts - lastOrbitTs < orbitFrameMs){
+      rafId = requestAnimationFrame(animateOrbit);
+      return;
+    }
+    lastOrbitTs = ts;
     const t = ts / 1000;
     const spin = (spinBaseDeg + t * spinSpeedDegPerSec) % 360;
     orbit.style.setProperty('--spinY', `${spin}deg`);
 
-    const items = Array.from(orbit.querySelectorAll('li'));
+    const items = orbitItems.length ? orbitItems : Array.from(orbit.querySelectorAll('li'));
     for(const li of items){
       const a0 = Number(li.dataset.baseAngleDeg || '0');
       const at = (a0 + spin) % 360;
@@ -348,6 +368,11 @@
     showReveal('from');
     await sleep(prefersReduced ? 0 : 120);
     showReveal('actions');
+
+    // Start orbit only after entrance settles to reduce first-load jank.
+    if(!prefersReduced && !rafId){
+      rafId = requestAnimationFrame(animateOrbit);
+    }
   }
 
   // Kick it off after initial paint.
@@ -357,10 +382,9 @@
   window.addEventListener('resize', ()=>{
     positionOrbitItems();
     spawnTwinkles();
-  });
+  }, {passive:true});
 
-  // Start 3D spin loop
-  rafId = requestAnimationFrame(animateOrbit);
+  // Start 3D spin loop after entrance (see runEntrance)
 
   // Scheme B: mouse + device orientation tilt
   if(!prefersReduced && orbital){
@@ -370,6 +394,10 @@
     let currentTiltY = 0;
 
     function smoothTilt(){
+      if(!appActive){
+        requestAnimationFrame(smoothTilt);
+        return;
+      }
       currentTiltX += (targetTiltX - currentTiltX) * 0.08;
       currentTiltY += (targetTiltY - currentTiltY) * 0.08;
       setTilt(currentTiltX, currentTiltY);
@@ -828,8 +856,19 @@
   const canvas = document.getElementById('snow');
   const ctx = canvas.getContext('2d');
   let w=0,h=0, flakes=[];
-  function resize(){ w=canvas.width=window.innerWidth; h=canvas.height=window.innerHeight; }
-  window.addEventListener('resize', resize); resize();
+  let snowDpr = 1;
+  function resize(){
+    snowDpr = Math.min(isMobile ? 1.15 : 1.6, window.devicePixelRatio || 1);
+    w = window.innerWidth;
+    h = window.innerHeight;
+    canvas.width = Math.floor(w * snowDpr);
+    canvas.height = Math.floor(h * snowDpr);
+    canvas.style.width = `${w}px`;
+    canvas.style.height = `${h}px`;
+    ctx.setTransform(snowDpr, 0, 0, snowDpr, 0, 0);
+  }
+  window.addEventListener('resize', resize, {passive:true});
+  resize();
 
   function makeFlake(){
     return {
@@ -842,12 +881,25 @@
     };
   }
   function initFlakes(){
-    const count = Math.min(140, Math.floor(w*h/12000));
+    const count = Math.max(60, Math.min(110, Math.floor((w*h/16000) * perfScale)));
     flakes = Array.from({length:count}, makeFlake);
   }
   initFlakes();
 
-  function tick(){
+  let lastSnow = performance.now();
+  const snowFrameMs = 1000 / 30;
+  function tick(now){
+    if(!appActive){
+      lastSnow = now;
+      requestAnimationFrame(tick);
+      return;
+    }
+    if(now - lastSnow < snowFrameMs){
+      requestAnimationFrame(tick);
+      return;
+    }
+    lastSnow = now;
+
     ctx.clearRect(0,0,w,h);
     ctx.fillStyle = 'rgba(255,255,255,0.9)';
     for(let f of flakes){
@@ -857,23 +909,30 @@
     }
     requestAnimationFrame(tick);
   }
-  tick();
+  requestAnimationFrame(tick);
 
   // Fireworks effect (Canvas)
   const fxCanvas = document.getElementById('fx');
   const fxCtx = fxCanvas.getContext('2d');
   let fwW = 0;
   let fwH = 0;
+  let fxDpr = 1;
   const particles = [];
   const rockets = [];
   const rings = [];
   let flashA = 0;
 
   function resizeFx(){
-    fwW = fxCanvas.width = window.innerWidth;
-    fwH = fxCanvas.height = window.innerHeight;
+    fxDpr = Math.min(isMobile ? 1.25 : 1.7, window.devicePixelRatio || 1);
+    fwW = window.innerWidth;
+    fwH = window.innerHeight;
+    fxCanvas.width = Math.floor(fwW * fxDpr);
+    fxCanvas.height = Math.floor(fwH * fxDpr);
+    fxCanvas.style.width = `${fwW}px`;
+    fxCanvas.style.height = `${fwH}px`;
+    fxCtx.setTransform(fxDpr, 0, 0, fxDpr, 0, 0);
   }
-  window.addEventListener('resize', resizeFx);
+  window.addEventListener('resize', resizeFx, {passive:true});
   resizeFx();
 
   function rand(min, max){ return min + Math.random()*(max-min); }
@@ -886,10 +945,11 @@
 
   function spawnBurst(x, y, opts){
     if(prefersReduced) return;
-    const count = opts?.count ?? 70;
+    const count = Math.max(18, Math.floor((opts?.count ?? 70) * perfScale));
     const power = opts?.power ?? 6.5;
     const hueBase = opts?.hueBase ?? rand(330, 45); // around red/gold
     const mode = opts?.mode ?? 'chrys';
+    if(particles.length > 1100) particles.splice(0, particles.length - 900);
     for(let i=0;i<count;i++){
       let a = Math.random() * Math.PI * 2;
       // shape tuning
@@ -964,10 +1024,10 @@
   function spawnPalm(x, y, hueBase){
     if(prefersReduced) return;
     // Palm: a few thick long branches
-    const branches = 7 + Math.floor(Math.random() * 3);
+    const branches = Math.max(5, Math.floor((7 + Math.random() * 3) * perfScale));
     for(let b=0;b<branches;b++){
       const a = (Math.PI * 2) * (b/branches) + rand(-0.18, 0.18);
-      const count = 10 + Math.floor(Math.random() * 6);
+      const count = Math.max(7, Math.floor((10 + Math.random() * 6) * perfScale));
       for(let i=0;i<count;i++){
         const sp = rand(4.6, 7.8) * (0.92 + i*0.03);
         const hue = (hueBase + rand(-10, 10)) % 360;
@@ -1035,7 +1095,20 @@
   }
 
   let lastFx = performance.now();
+  let lastFxDraw = lastFx;
+  const fxFrameMs = 1000 / (isMobile ? 40 : 55);
   function fxLoop(now){
+    if(!appActive){
+      lastFx = now;
+      lastFxDraw = now;
+      requestAnimationFrame(fxLoop);
+      return;
+    }
+    if(now - lastFxDraw < fxFrameMs){
+      requestAnimationFrame(fxLoop);
+      return;
+    }
+    lastFxDraw = now;
     const dt = Math.min(34, now - lastFx);
     lastFx = now;
 
