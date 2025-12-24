@@ -504,52 +504,9 @@
     orbital.addEventListener('touchend', endDrag, {passive:true});
     orbital.addEventListener('touchcancel', endDrag, {passive:true});
 
-    // iOS requires user gesture to request permission; we'll try gracefully.
-    async function enableDeviceTilt(){
-      try{
-        const anyDeviceMotion = DeviceMotionEvent;
-        if(anyDeviceMotion && typeof anyDeviceMotion.requestPermission === 'function'){
-          // Only enable gyro when user explicitly grants permission (prevents drift in WeChat).
-          let gyroEnabled = false;
-
-          // Ask once when user first taps anywhere.
-          const onFirstTap = async ()=>{
-            document.removeEventListener('click', onFirstTap);
-            try{
-              const res = await anyDeviceMotion.requestPermission();
-              gyroEnabled = (res === 'granted');
-            }catch{}
-          };
-          document.addEventListener('click', onFirstTap, {once:true});
-
-          // deviceorientation: gated by permission
-          window.addEventListener('deviceorientation', (e)=>{
-            if(!gyroEnabled) return;
-            if(typeof e.beta !== 'number' || typeof e.gamma !== 'number') return;
-            const bx = clamp(e.beta, -20, 20);
-            const gy = clamp(e.gamma, -25, 25);
-
-            // Deadzone to ignore tiny hand tremors.
-            const dzB = 2.2;
-            const dzG = 2.6;
-            const bx2 = (Math.abs(bx) < dzB) ? 0 : bx;
-            const gy2 = (Math.abs(gy) < dzG) ? 0 : gy;
-
-            // Target tilt from device, then smooth to avoid jitter.
-            const targetDX = clamp(-bx2 * 0.18, -6, 6);
-            const targetDY = clamp(gy2 * 0.22, -7, 7);
-            deviceTiltX += (targetDX - deviceTiltX) * 0.18;
-            deviceTiltY += (targetDY - deviceTiltY) * 0.18;
-          }, {passive:true});
-
-          return;
-        }
-      }catch{}
-    }
-    enableDeviceTilt();
-
-    // On most mobile WebViews (esp. WeChat/Android), deviceorientation is noisy and
-    // causes unwanted drift. Default to drag-only unless iOS permission is granted.
+    // Gyro/deviceorientation is intentionally disabled (causes drift/jank in mobile WebViews).
+    deviceTiltX = 0;
+    deviceTiltY = 0;
   }
 
   function toast(text){
