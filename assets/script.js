@@ -85,8 +85,10 @@
 
   // Entrance interaction: reveal + typing + list
   const prefersReduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  const isMobile = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-  const perfScale = isMobile ? 0.72 : 1;
+  const ua = navigator.userAgent || '';
+  const isWeChat = /MicroMessenger/i.test(ua);
+  const isMobile = /Mobi|Android|iPhone|iPad|iPod/i.test(ua);
+  const perfScale = isWeChat ? 0.55 : (isMobile ? 0.72 : 1);
   let appActive = !document.hidden;
   document.addEventListener('visibilitychange', ()=>{ appActive = !document.hidden; }, {passive:true});
 
@@ -271,7 +273,8 @@
   }
 
   function spawnTwinkles(){
-    if(!orbital || prefersReduced) return;
+    // WeChat WebView can be heavy on animated DOM; disable twinkles there.
+    if(!orbital || prefersReduced || isWeChat) return;
     clearTwinkles();
     const count = 14;
     for(let i=0;i<count;i++){
@@ -294,7 +297,8 @@
 
   async function renderWishList(){
     wishList.innerHTML = '';
-    const items = pickListItems(Math.max(6, Math.floor(8 * perfScale)));
+    const minCount = isWeChat ? 5 : 6;
+    const items = pickListItems(Math.max(minCount, Math.floor(8 * perfScale)));
     const offset = Math.random() * 360;
     const step = 360 / items.length;
     orbitItems = [];
@@ -304,6 +308,11 @@
       span.textContent = items[i];
       li.appendChild(span);
       li.dataset.baseAngleDeg = String(offset + step * i);
+      if(isWeChat){
+        // Reduce per-frame CSS filter/offset work in WeChat.
+        li.style.setProperty('--blur', '0px');
+        li.style.setProperty('--y', '0px');
+      }
       wishList.appendChild(li);
       orbitItems.push(li);
       if(prefersReduced){
@@ -323,7 +332,7 @@
   let rafId = 0;
   let orbitItems = [];
   let lastOrbitTs = 0;
-  const orbitFrameMs = 1000 / 30;
+  const orbitFrameMs = 1000 / (isWeChat ? 20 : 30);
   function animateOrbit(ts){
     if(!orbit || prefersReduced || !appActive){
       rafId = requestAnimationFrame(animateOrbit);
@@ -342,22 +351,20 @@
     for(const li of items){
       const a0 = Number(li.dataset.baseAngleDeg || '0');
       const at = (a0 + spin) % 360;
-      li.style.setProperty('--at', `${at}deg`);
-
       const rad = (at * Math.PI) / 180;
       const depth = (Math.cos(rad) + 1) / 2;
 
-      // Far side: hide almost completely
-      const visible = depth > 0.32;
-      li.style.opacity = visible ? '' : '0';
-
       const opacity = Math.pow(depth, 1.6); // emphasize front
-      const blur = (1 - depth) * 2.8;
-      const y = Math.sin(rad) * 18;
+      // Far side: make nearly invisible (avoid extra style writes)
+      const o = depth > 0.32 ? clamp(opacity, 0, 1) : 0;
+      li.style.setProperty('--o', o.toFixed(2));
 
-      li.style.setProperty('--o', clamp(opacity, 0, 1).toFixed(2));
-      li.style.setProperty('--blur', `${blur.toFixed(2)}px`);
-      li.style.setProperty('--y', `${y.toFixed(1)}px`);
+      if(!isWeChat){
+        const blur = (1 - depth) * 2.8;
+        const y = Math.sin(rad) * 18;
+        li.style.setProperty('--blur', `${blur.toFixed(2)}px`);
+        li.style.setProperty('--y', `${y.toFixed(1)}px`);
+      }
     }
 
     rafId = requestAnimationFrame(animateOrbit);
@@ -420,8 +427,10 @@
 
   // Scheme B: mouse + device orientation tilt
   if(!prefersReduced && orbital){
-    let targetTiltX = 0;
-    let targetTiltY = 0;
+    let pointerTiltX = 0;
+    let pointerTiltY = 0;
+    let deviceTiltX = 0;
+    let deviceTiltY = 0;
     let currentTiltX = 0;
     let currentTiltY = 0;
 
@@ -430,8 +439,10 @@
         requestAnimationFrame(smoothTilt);
         return;
       }
-      currentTiltX += (targetTiltX - currentTiltX) * 0.08;
-      currentTiltY += (targetTiltY - currentTiltY) * 0.08;
+      const targetX = clamp(pointerTiltX + deviceTiltX, -10, 10);
+      const targetY = clamp(pointerTiltY + deviceTiltY, -12, 12);
+      currentTiltX += (targetX - currentTiltX) * 0.08;
+      currentTiltY += (targetY - currentTiltY) * 0.08;
       setTilt(currentTiltX, currentTiltY);
       requestAnimationFrame(smoothTilt);
     }
@@ -443,9 +454,55 @@
       const cy = rect.top + rect.height/2;
       const nx = (e.clientX - cx) / (rect.width/2);
       const ny = (e.clientY - cy) / (rect.height/2);
-      targetTiltY = clamp(nx * 10, -10, 10);
-      targetTiltX = clamp(-ny * 8, -8, 8);
+      pointerTiltY = clamp(nx * 10, -10, 10);
+      pointerTiltX = clamp(-ny * 8, -8, 8);
     }, {passive:true});
+
+    // Mobile: allow finger drag to control tilt (more reliable than gyro in WeChat).
+    let dragging = false;
+    const setPointerTiltFromClient = (clientX, clientY)=>{
+      const rect = orbital.getBoundingClientRect();
+      const cx = rect.left + rect.width/2;
+      const cy = rect.top + rect.height/2;
+      const nx = (clientX - cx) / (rect.width/2);
+      const ny = (clientY - cy) / (rect.height/2);
+      pointerTiltY = clamp(nx * 12, -12, 12);
+      pointerTiltX = clamp(-ny * 10, -10, 10);
+    };
+
+    // Pointer events (modern)
+    orbital.addEventListener('pointerdown', (e)=>{
+      dragging = true;
+      try{ orbital.setPointerCapture(e.pointerId); }catch{}
+      setPointerTiltFromClient(e.clientX, e.clientY);
+    });
+    orbital.addEventListener('pointermove', (e)=>{
+      if(!dragging) return;
+      setPointerTiltFromClient(e.clientX, e.clientY);
+    });
+    const endDrag = ()=>{
+      dragging = false;
+      // ease back to neutral unless gyro is active
+      pointerTiltX = 0;
+      pointerTiltY = 0;
+    };
+    orbital.addEventListener('pointerup', endDrag);
+    orbital.addEventListener('pointercancel', endDrag);
+
+    // Touch fallback (older WebViews)
+    orbital.addEventListener('touchstart', (e)=>{
+      if(!e.touches || !e.touches.length) return;
+      dragging = true;
+      const t = e.touches[0];
+      setPointerTiltFromClient(t.clientX, t.clientY);
+    }, {passive:true});
+    orbital.addEventListener('touchmove', (e)=>{
+      if(!dragging || !e.touches || !e.touches.length) return;
+      const t = e.touches[0];
+      setPointerTiltFromClient(t.clientX, t.clientY);
+    }, {passive:true});
+    orbital.addEventListener('touchend', endDrag, {passive:true});
+    orbital.addEventListener('touchcancel', endDrag, {passive:true});
 
     // iOS requires user gesture to request permission; we'll try gracefully.
     async function enableDeviceTilt(){
@@ -468,9 +525,9 @@
       // beta: front-back (-180..180), gamma: left-right (-90..90)
       const bx = clamp(e.beta, -20, 20);
       const gy = clamp(e.gamma, -25, 25);
-      // Blend device tilt in; keep it subtle.
-      targetTiltX = clamp(targetTiltX + (-bx * 0.18), -10, 10);
-      targetTiltY = clamp(targetTiltY + (gy * 0.22), -12, 12);
+      // Use absolute device tilt (avoid drift), keep it subtle.
+      deviceTiltX = clamp(-bx * 0.18, -6, 6);
+      deviceTiltY = clamp(gy * 0.22, -7, 7);
     }, {passive:true});
   }
 
@@ -495,6 +552,7 @@
   let sfxGain = null;
   let sfxEchoIn = null;
   let musicOn = false;
+  let musicWanted = true;
   let musicTimer = null;
   let unlocked = false;
 
@@ -509,8 +567,9 @@
       sfxGain = audioCtx.createGain();
       sfxEchoIn = audioCtx.createGain();
       masterGain.gain.value = 0.55;
-      musicGain.gain.value = 0.16;
-      sfxGain.gain.value = 0.55;
+      // Slightly louder defaults (user requested): still keep headroom.
+      musicGain.gain.value = 0.22;
+      sfxGain.gain.value = 0.75;
 
       // SFX spatial feel: short echo + filtered feedback (subtle, but reduces "toy" dryness)
       const delay = audioCtx.createDelay(1.0);
@@ -573,7 +632,8 @@
     audioBtn.textContent = on ? '音乐：开' : '音乐：关';
     audioBtn.setAttribute('aria-pressed', on ? 'true' : 'false');
   }
-  setMusicUI(false);
+  // Default: show music as enabled. Actual playback starts after first user gesture.
+  setMusicUI(true);
 
   function stopMusic(){
     if(musicTimer){
@@ -800,14 +860,13 @@
   }
 
   function toggleMusic(){
-    if(!ensureAudio()){
-      toast('当前浏览器不支持音频播放');
-      return;
-    }
-    if(musicOn){
+    // Toggle desired state first (UI should respond instantly)
+    musicWanted = !musicWanted;
+    if(!musicWanted){
       stopMusic();
       return;
     }
+    setMusicUI(true);
     // must unlock by gesture
     unlockAudio().then(()=>{
       if(audioCtx && audioCtx.state === 'running') startMusic();
@@ -830,7 +889,7 @@
     pop(t0 + 0.11, 0.75);
 
     // Add an "air" burst tail (gives outdoor feel)
-    noiseBurst(t0 + 0.02, 0.16, 0.22, 900);
+    noiseBurst(t0 + 0.02, 0.16, 0.30, 900);
 
     // Dense crackle train (爆竹连响)
     const n = 36;
@@ -880,6 +939,10 @@
     document.removeEventListener('click', unlockOnce);
     document.removeEventListener('touchstart', unlockOnce);
     await unlockAudio();
+    // If user wants music by default, start it right after unlock.
+    if(musicWanted && !musicOn && audioCtx && audioCtx.state === 'running'){
+      startMusic();
+    }
   };
   document.addEventListener('click', unlockOnce, {once:true});
   document.addEventListener('touchstart', unlockOnce, {once:true, passive:true});
@@ -890,7 +953,7 @@
   let w=0,h=0, flakes=[];
   let snowDpr = 1;
   function resize(){
-    snowDpr = Math.min(isMobile ? 1.15 : 1.6, window.devicePixelRatio || 1);
+    snowDpr = Math.min(isWeChat ? 1.0 : (isMobile ? 1.15 : 1.6), window.devicePixelRatio || 1);
     w = window.innerWidth;
     h = window.innerHeight;
     canvas.width = Math.floor(w * snowDpr);
@@ -919,7 +982,7 @@
   initFlakes();
 
   let lastSnow = performance.now();
-  const snowFrameMs = 1000 / 30;
+  const snowFrameMs = 1000 / (isWeChat ? 24 : 30);
   function tick(now){
     if(!appActive){
       lastSnow = now;
@@ -955,7 +1018,7 @@
   let flashA = 0;
 
   function resizeFx(){
-    fxDpr = Math.min(isMobile ? 1.25 : 1.7, window.devicePixelRatio || 1);
+    fxDpr = Math.min(isWeChat ? 1.05 : (isMobile ? 1.25 : 1.7), window.devicePixelRatio || 1);
     fwW = window.innerWidth;
     fwH = window.innerHeight;
     fxCanvas.width = Math.floor(fwW * fxDpr);
@@ -1124,20 +1187,37 @@
       life: opts?.life ?? rand(700, 900),
       hue
     });
+
+    // Start FX loop on demand (saves a lot of CPU on WeChat idle).
+    startFxLoop();
   }
 
   let lastFx = performance.now();
   let lastFxDraw = lastFx;
-  const fxFrameMs = 1000 / (isMobile ? 40 : 55);
+  const fxFrameMs = 1000 / (isWeChat ? 26 : (isMobile ? 40 : 55));
+  let fxRunning = false;
+  function startFxLoop(){
+    if(fxRunning) return;
+    fxRunning = true;
+    requestAnimationFrame(fxLoop);
+  }
   function fxLoop(now){
     if(!appActive){
       lastFx = now;
       lastFxDraw = now;
-      requestAnimationFrame(fxLoop);
+      if(fxRunning) requestAnimationFrame(fxLoop);
+      return;
+    }
+
+    // If nothing is happening, stop the loop to save battery/CPU.
+    if(!rockets.length && !particles.length && !rings.length && flashA <= 0.001){
+      fxRunning = false;
+      // Clear any residual tinting.
+      fxCtx.clearRect(0, 0, fwW, fwH);
       return;
     }
     if(now - lastFxDraw < fxFrameMs){
-      requestAnimationFrame(fxLoop);
+      if(fxRunning) requestAnimationFrame(fxLoop);
       return;
     }
     lastFxDraw = now;
@@ -1300,9 +1380,9 @@
       fxCtx.globalAlpha = 1;
     }
 
-    requestAnimationFrame(fxLoop);
+    if(fxRunning) requestAnimationFrame(fxLoop);
   }
-  requestAnimationFrame(fxLoop);
+  // FX loop is started on demand (see spawnRocket).
 
   function fireAtApple(){
     const apple = document.querySelector('.apple');
