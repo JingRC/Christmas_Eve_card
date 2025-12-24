@@ -82,14 +82,29 @@
   const fromLine = el('fromLine');
   const wishList = el('wishList');
 
+  // Entrance interaction: reveal + typing + list
+  const prefersReduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const isMobile = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+  const perfScale = isMobile ? 0.72 : 1;
+  let appActive = !document.hidden;
+  document.addEventListener('visibilitychange', ()=>{ appActive = !document.hidden; }, {passive:true});
+
+  function getFullMessage(){
+    return `在这个温暖的平安夜，送你一颗平安果。${msg}`;
+  }
+
   function applyBlessing(next){
     to = (next.to || '朋友').trim() || '朋友';
     from = (next.from || '我').trim() || '我';
-    msgRaw = (next.msgRaw || '').trim();
-    msg = msgRaw || blessings[Math.floor(Math.random()*blessings.length)];
+    msgRaw = (next.msgRaw ?? msgRaw ?? '').trim();
+    if(msgRaw){
+      msg = msgRaw;
+    }else if(!msg){
+      msg = blessings[Math.floor(Math.random()*blessings.length)];
+    }
 
     toLine.textContent = `亲爱的 ${to}：`;
-    const fullMessage = `在这个温暖的平安夜，送你一颗平安果。${msg}`;
+    const fullMessage = getFullMessage();
     fromLine.textContent = `—— 来自 ${from}`;
 
     // Keep form fields in sync
@@ -118,6 +133,9 @@
   toInput.value = to === '朋友' ? '' : to;
   fromInput.value = from === '我' ? '' : from;
   msgInput.value = msgRaw;
+
+  // Ensure base text is present even if entrance animation is interrupted.
+  applyBlessing({ to, from, msgRaw });
 
   customizeBtn.addEventListener('click', ()=>{
     form.classList.toggle('hidden');
@@ -172,13 +190,6 @@
     const ok = await copy(url);
     toast(ok? '个性链接已复制（并已应用到本页），快分享给TA吧~' : '复制失败，请手动复制地址栏链接');
   });
-
-  // Entrance interaction: reveal + typing + list
-  const prefersReduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  const isMobile = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-  const perfScale = isMobile ? 0.72 : 1;
-  let appActive = !document.hidden;
-  document.addEventListener('visibilitychange', ()=>{ appActive = !document.hidden; }, {passive:true});
 
   function sleep(ms){ return new Promise((r)=>setTimeout(r, ms)); }
 
@@ -361,7 +372,7 @@
     await sleep(prefersReduced ? 0 : 140);
 
     messageEl.classList.add('is-visible');
-    await typewriter(fullMessage, messageEl, 38);
+    await typewriter(getFullMessage(), messageEl, 38);
     await sleep(prefersReduced ? 0 : 140);
     await renderWishList();
     await sleep(prefersReduced ? 0 : 120);
